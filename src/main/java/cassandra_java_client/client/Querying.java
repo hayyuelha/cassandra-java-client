@@ -5,9 +5,11 @@ import java.util.UUID;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
+import com.datastax.driver.core.utils.UUIDs;
 
 
 public class Querying {
@@ -19,11 +21,18 @@ public class Querying {
 	private Statement statement;
 	private ResultSet results;
 	
+	public static final String USER = "userline";
+	public static final String TIMELINE = "timeline";
+	
 	public Querying (String host, String keyspace) {
 		this.cluster = Cluster.builder().addContactPoint(host).build();
 		this.session = cluster.connect(keyspace);
 		this.keyspace = keyspace;
 		this.qb = new QueryBuilder(cluster);
+	}
+	
+	public void close () {
+		this.cluster.close();
 	}
 	
 	public void register (String username, String password) {
@@ -34,7 +43,6 @@ public class Querying {
 		} else {
 			System.out.println("User already exists."); //Is there any error message from cassandra for primary key violation?
 		}
-		
 	}
 	
 	public void follow (String username, String friend) {
@@ -46,21 +54,68 @@ public class Querying {
 					.value("since", currentTime);
 			this.session.execute(this.statement);
 			this.statement = this.qb.insertInto(this.keyspace, "followers")
-					.value("username", username)
-					.value("follow", friend)
+					.value("username", friend)
+					.value("follower", username)
 					.value("since", currentTime);
 			this.session.execute(this.statement);
 		} else {
 			System.out.println("Cannot follow " + friend); //Is there any error message from cassandra for primary key violation?
 		}
-		
 	}
 	
 	public void tweet (String username, String body) {
-		
+		if (isUserExist(username)) {
+			UUID tweet_id = UUID.randomUUID();
+			UUID time = UUIDs.timeBased();
+			this.statement = this.qb.insertInto(this.keyspace, "tweets")
+					.value("tweet_id", tweet_id)
+					.value("username", username)
+					.value("body", body);
+			this.session.execute(this.statement);			
+			this.statement = this.qb.insertInto(this.keyspace, "userline")
+					.value("username", username)
+					.value("time", time)
+					.value("tweet_id", tweet_id);
+			this.session.execute(this.statement);
+			this.statement = this.qb.insertInto(this.keyspace, "timeline")
+					.value("username", username)
+					.value("time", time)
+					.value("tweet_id", tweet_id);
+			this.session.execute(this.statement);
+			this.statement = this.qb.select("follower")
+					.from(this.keyspace, "followers")
+					.where(QueryBuilder.eq("username", username));
+			this.results = this.session.execute(this.statement);
+			for (Row row: this.results) {
+				this.statement = this.qb.insertInto(this.keyspace, "timeline")
+						.value("username", row.getString("follower"))
+						.value("time", time)
+						.value("tweet_id", tweet_id);
+				this.session.execute(this.statement);				
+			}
+		}
 	}
 	
-	
+	public void showTweets (String username, String type) {
+		if (isUserExist(username)) {
+			this.statement = this.qb.select().from(this.keyspace, type)
+					.where(QueryBuilder.eq("username", username));
+			this.results = this.session.execute(this.statement);
+			for (Row row: this.results) {
+				this.statement = this.qb.select("body").from(this.keyspace, "tweets")
+						.where(QueryBuilder.eq("tweet_id", row.getObject("tweet_id")));
+				ResultSet tweet = this.session.execute(this.statement);
+				for (Row r: tweet) {
+		        	System.out.format("[%s | %s] %s\n", 
+		        			row.getString("username"), 
+		        			row.getObject("time"),
+		        			r.getString("body"));
+				}
+			}
+		} else {
+			System.out.println("Username " + username + " doesn't exist");
+		}			
+	}
 	
 	// Support methods
 	
@@ -96,8 +151,5 @@ public class Querying {
 		if (results.all().isEmpty())
 			return false;
 		return true;
-	}
-	
-	
-	
+	}	
 }

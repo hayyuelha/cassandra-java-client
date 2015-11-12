@@ -17,28 +17,22 @@ public class App
 {
     public static void main( String[] args )
     {
-        Cluster cluster;
-        Session session;
-        
-        cluster = Cluster.builder().addContactPoint("167.205.35.19").build();
-        session = cluster.connect("hayyu");
-        
-//        ResultSet results = session.execute("SELECT * FROM users");
-//        for (Row row : results) {
-//        	System.out.format("%s %s\n", row.getString("username"), row.getString("password"));
-//        }
-        
-        Date currTime = new Date();
-        QueryBuilder qb = new QueryBuilder(cluster);
-        Statement s = qb.insertInto("hayyu", "friends")
-				.value("username", "hera")
-				.value("friend", "minerva")
-				.value("since", currTime);
-        session.execute(s);
-        
-//        s = qb.select().all().from("hayyu", "friend");
-//        ResultSet result = session.execute(s);
-        cluster.close();
-        
+    	Querying twitter = new Querying("167.205.35.19", "hayyu");
+    	twitter.register("icha", "ichajuga");
+    	if (twitter.isUserFollows("hera", "icha")) {
+    		System.out.println("icha follow hera");
+    	} else {
+    		System.out.println("icha belum follow hera");
+    		twitter.follow("icha", "hera");
+    		if (twitter.isUserFollows("hera", "icha")) {
+        		System.out.println("icha follow hera");
+        	} else {
+        		System.out.println("icha belum follow hera");
+        	}
+    	}
+    	twitter.tweet("icha", "lalallalaallalallalalala");
+    	twitter.showTweets("icha", Querying.USER);
+    	twitter.showTweets("icha", Querying.TIMELINE);
+    	twitter.close();
     }
 }
