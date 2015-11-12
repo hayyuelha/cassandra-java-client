@@ -45,12 +45,23 @@ public class Querying {
 		}
 	}
 	
+	public boolean login (String username, String password) {
+		this.statement = this.qb.select().all().from(this.keyspace, "users")
+				.where(QueryBuilder.eq("username", username));
+		this.results = this.session.execute(this.statement);
+		boolean exist = false;
+		for (Row row: results) {
+			exist = password.equals(row.getString("password"));
+		}
+		return exist;
+	}
+	
 	public void follow (String username, String friend) {
 		if (isUserExist(username) && isUserExist(friend)) {
 			Date currentTime = new Date(); // UTC time; need to specify time zone
 			this.statement = this.qb.insertInto(this.keyspace, "friends")
-					.value("username", username)
-					.value("friend", friend)
+					.value("username", friend)
+					.value("friend", username)
 					.value("since", currentTime);
 			this.session.execute(this.statement);
 			this.statement = this.qb.insertInto(this.keyspace, "followers")
@@ -102,13 +113,12 @@ public class Querying {
 					.where(QueryBuilder.eq("username", username));
 			this.results = this.session.execute(this.statement);
 			for (Row row: this.results) {
-				this.statement = this.qb.select("body").from(this.keyspace, "tweets")
+				this.statement = this.qb.select().from(this.keyspace, "tweets")
 						.where(QueryBuilder.eq("tweet_id", row.getObject("tweet_id")));
 				ResultSet tweet = this.session.execute(this.statement);
 				for (Row r: tweet) {
-		        	System.out.format("[%s | %s] %s\n", 
-		        			row.getString("username"), 
-		        			row.getObject("time"),
+		        	System.out.format("[%s] %s\n", 
+		        			r.getString("username"),
 		        			r.getString("body"));
 				}
 			}
@@ -145,8 +155,8 @@ public class Querying {
 		if (!isUserExist(user1) || !isUserExist(user2))
 			return false;
 		this.statement = this.qb.select().all().from(this.keyspace, "followers")
-				.where(QueryBuilder.eq("username", user1))
-				.and(QueryBuilder.eq("follower", user2));
+				.where(QueryBuilder.eq("username", user2))
+				.and(QueryBuilder.eq("follower", user1));
 		this.results = this.session.execute(this.statement);
 		if (results.all().isEmpty())
 			return false;
