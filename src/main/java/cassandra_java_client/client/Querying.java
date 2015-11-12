@@ -65,7 +65,7 @@ public class Querying {
 	
 	public void tweet (String username, String body) {
 		if (isUserExist(username)) {
-			UUID tweet_id = UUID.randomUUID();
+			UUID tweet_id = UUIDs.random();
 			UUID time = UUIDs.timeBased();
 			this.statement = this.qb.insertInto(this.keyspace, "tweets")
 					.value("tweet_id", tweet_id)
